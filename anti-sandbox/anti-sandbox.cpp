@@ -238,7 +238,7 @@ BOOL checkCPUTemperature()
 	return res;
 }
 
-// 检测域名
+// 检测域名?
 BOOL checkDomain()
 {
 	BOOL ret = FALSE;
@@ -353,7 +353,7 @@ BOOL checkPhyDisk(INT disk)
 // 检测进程
 BOOL checkProcess() 
 {
-	const char* list[3] = { "VBoxService.exe", "VBoxTray.exe", "vmware.exe" };
+	const char* list[4] = { "VBoxService.exe", "VBoxTray.exe", "vmware.exe", "vmtoolsd.exe" };
 	PROCESSENTRY32 pe32;
 	pe32.dwSize = sizeof(pe32);
 	HANDLE hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
@@ -362,7 +362,7 @@ BOOL checkProcess()
 	{
 		char sz_Name[MAX_PATH] = { 0 };
 		WideCharToMultiByte(CP_ACP, 0, pe32.szExeFile, -1, sz_Name, sizeof(sz_Name), NULL, NULL);
-		for (int i = 0; i < 3; ++i)
+		for (int i = 0; i < 4; ++i)
 		{
 			if (strcmp(sz_Name, list[i]) == 0)
 			{
@@ -647,7 +647,7 @@ BOOL checkHardwareInfo()
 }
 
 // 检测代码运行时间差（需指定时间差）
-BOOL checkSpeed()
+BOOL checkSpeed(INT td)
 {
 	__asm
 	{
@@ -655,7 +655,7 @@ BOOL checkSpeed()
 		xchg ebx, eax
 		rdtsc
 		sub eax, ebx
-		cmp eax, 0xFF
+		cmp eax, td // 0xe
 		jg detected
 	}
 	return FALSE;
@@ -758,6 +758,7 @@ BOOL checkTSS()
 	}
 	else
 	{
+		// 0x40000000
 		return FALSE;
 	}
 }
@@ -803,28 +804,169 @@ int main()
 	if (isAdmin() && IsUserAnAdmin())
 	{
 		printf("[+] Admin\n");
-		checkCPUTemperature();
-		checkPhyDisk(250);
-		checkPath();
+		if (checkCPUTemperature())
+		{
+			printf("[-] checkCPUTemperature - VM\n");
+		}
+		else
+		{
+			printf("[+] checkCPUTemperature - not VM\n");
+		}
+
+		if (checkPhyDisk(250))
+		{
+			printf("[-] checkPhyDisk - VM\n");
+		}
+		else
+		{
+			printf("[+] checkPhyDisk - not VM\n");
+		}
+
+		if (checkPath())
+		{
+			printf("[-] checkPath - VM\n");
+		}
+		else
+		{
+			printf("[+] checkPath - not VM\n");
+		}
+
 	}
-	else // 不需要管理员权限
+	printf("[+] Not Admin\n");
+
+	if (checkCPUCores(4))
 	{
-		printf("[+] Not Admin\n");
-		checkCPUCores(4);
-		checkDomain();
-		checkMAC();
-		checkMemory(4);
-		checkProcess();
-		checkSerivce();
-		checkUptime(3600000); // ms
-		checkCPUID();
-		checkTempDir(30);
-		checkHardwareInfo();
-		checkSpeed();
-		checkNoPill();
-		checkIOPort();
-		checkTSS();
-		checkUnISA();
+		printf("[-] checkCPUCores - VM\n");
+	}
+	else
+	{
+		printf("[+] checkCPUCores - not VM\n");
+	}
+
+	if (checkDomain())
+	{
+		printf("[-] checkDomain - VM\n");
+	}
+	else
+	{
+		printf("[+] checkDomain - not VM\n");
+	}
+
+	if (checkMAC())
+	{
+		printf("[-] checkMAC - VM\n");
+	}
+	else
+	{
+		printf("[+] checkMAC - not VM\n");
+	}
+
+	if (checkMemory(4))
+	{
+		printf("[-] checkMemory - VM\n");
+	}
+	else
+	{
+		printf("[+] checkMemory - not VM\n");
+	}
+
+	if (checkProcess())
+	{
+		printf("[-] checkProcess - VM\n");
+	}
+	else
+	{
+		printf("[+] checkProcess - not VM\n");
+	}
+
+	if (checkSerivce())
+	{
+		printf("[-] checkSerivce - VM\n");
+	}
+	else
+	{
+		printf("[+] checkSerivce - not VM\n");
+	}
+
+	if (checkUptime(3600000))
+	{
+		printf("[-] checkUptime - VM\n");
+	}
+	else
+	{
+		printf("[+] checkUptime - not VM\n");
+	}
+
+	if (checkCPUID())
+	{
+		printf("[-] checkCPUID - VM\n");
+	}
+	else
+	{
+		printf("[+] checkCPUID - not VM\n");
+	}
+
+	if (checkTempDir(30))
+	{
+		printf("[-] checkTempDir - VM\n");
+	}
+	else
+	{
+		printf("[+] checkTempDir - not VM\n");
+	}
+
+	if (checkHardwareInfo())
+	{
+		printf("[-] checkHardwareInfo - VM\n");
+	}
+	else
+	{
+		printf("[+] checkHardwareInfo - not VM\n");
+	}
+
+	if (checkSpeed(0xff))
+	{
+		printf("[-] checkSpeed - VM\n");
+	}
+	else
+	{
+		printf("[+] checkSpeed - not VM\n");
+	}
+
+	if (checkNoPill())
+	{
+		printf("[-] checkNoPill - VM\n");
+	}
+	else
+	{
+		printf("[+] checkNoPill - not VM\n");
+	}
+
+	if (checkIOPort())
+	{
+		printf("[-] checkIOPort - VM\n");
+	}
+	else
+	{
+		printf("[+] checkIOPort - not VM\n");
+	}
+
+	if (checkTSS())
+	{
+		printf("[-] checkTSS - VM\n");
+	}
+	else
+	{
+		printf("[+] checkTSS - not VM\n");
+	}
+
+	if (checkUnISA())
+	{
+		printf("[-] checkUnISA - VM\n");
+	}
+	else
+	{
+		printf("[+] checkUnISA - not VM\n");
 	}
 
 	return 0;

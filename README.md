@@ -6,7 +6,7 @@ Windows对抗沙箱和虚拟机的方法总结
 |-|-|-|
 |checkCPUCores|检查CPU核心数||
 |checkCPUTemperature|检查CPU温度|需要管理员权限|
-|checkDomain|检测域名||
+|checkDomain|检测域名|原理未知，测试不成功|
 |checkMAC|检测MAC地址||
 |checkMemory|检测内存大小||
 |checkPhyDisk|检测磁盘大小|需要管理员权限|
@@ -17,10 +17,10 @@ Windows对抗沙箱和虚拟机的方法总结
 |checkCPUID|使用`CPUID`指令||
 |checkTempDir|检测`TEMP`目录下的文件数量||
 |checkHardwareInfo|检测主板序列号、主机型号、系统盘所在磁盘名称等硬件信息||
-|checkSpeed|检测代码运行时间差||
-|checkNoPill|使用`sgdt`和`sldt`指令|VMware|
+|checkSpeed|检测代码运行时间差|需手动指定正常时间差，较困难|
+|checkNoPill|使用`sgdt`和`sldt`指令|VMware，不是每一次都会成功|
 |checkIOPort|检测IO端口`in`|VMware|
-|checkTSS|检查当前正在运行的任务的任务状态段`TSS`|VMware|
+|checkTSS|检查当前正在运行的任务的任务状态段`TSS`|VMware，测试失败，虚拟机和物理机均返回0x40000000|
 |checkUnISA|检测无效指令|VirtualPC|
 
 ## 其它方法
@@ -32,3 +32,4 @@ Windows对抗沙箱和虚拟机的方法总结
 * https://github.com/sharepub/CheckVM-Sandbox
 * https://zhuanlan.zhihu.com/p/35423785
 * https://www.anquanke.com/post/id/186218
+* https://bbs.pediy.com/thread-119969.htm
