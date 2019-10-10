@@ -45,22 +45,9 @@ BOOL isAdmin()
 	return bElevated;
 }
 
-// 获取当前系统的时钟间隔值（频率倒数）
-DWORD getSystemClockInterval()
-{
-	// Sysinternal的ClockRes
-	// x86上最小0.500 ms，最大15.625 ms
-	DWORD adjustment, clockInterval;
-	BOOL  adjustmentDisabled;
-	GetSystemTimeAdjustment(&adjustment,
-		&clockInterval,
-		&adjustmentDisabled);
-	return clockInterval / 10000;
-}
-
 // 获取CPU核心数
 // SYSTEM_INFO.dwNumberOfProcessors
-BOOL checkPUCores(INT cores)
+BOOL checkCPUCores(INT cores)
 {
 	INT i = 0;
 	_asm { // x64编译模式下不支持__asm的汇编嵌入
@@ -74,11 +61,12 @@ BOOL checkPUCores(INT cores)
 
 // 获取CPU温度（需要管理员权限）
 // Get-WMIObject MSAcpi_ThermalZoneTemperature -Namespace "root/wmi"
+// VM中无返回结果
 // https://docs.microsoft.com/en-us/windows/win32/wmisdk/example--getting-wmi-data-from-the-local-computer
 BOOL checkCPUTemperature()
 {
 	HRESULT hres;
-	BOOL res = FALSE;
+	BOOL res = -1;
 
 	do 
 	{
@@ -216,8 +204,12 @@ BOOL checkCPUTemperature()
 		{
 			HRESULT hr = pEnumerator->Next(WBEM_INFINITE, 1, &pclsObj, &uReturn);
 
-			if (0 == uReturn)
+			if (0 == uReturn) // VM中结果为空
 			{
+				if (-1 == res)
+				{
+					res = TRUE;
+				}
 				break;
 			}
 
@@ -225,7 +217,9 @@ BOOL checkCPUTemperature()
 
 			// Get the value of the Name property
 			hr = pclsObj->Get(L"CurrentTemperature", 0, &vtProp, 0, 0);
-			res = vtProp.ullVal / 10.0 - 273.15; // 开氏转摄氏
+			// res = vtProp.ullVal / 10.0 - 273.15; // 开氏转摄氏
+			res = FALSE;
+			
 			VariantClear(&vtProp);
 
 			pclsObj->Release();
@@ -244,7 +238,7 @@ BOOL checkCPUTemperature()
 	return res;
 }
 
-// ??
+// 检测域名
 BOOL checkDomain()
 {
 	BOOL ret = FALSE;
@@ -439,7 +433,7 @@ BOOL checkSerivce()
 	{
 		return FALSE;
 	}
-	for (int i = 0; i < ServicesReturned; i++)
+	for (DWORD i = 0; i < ServicesReturned; i++)
 	{
 		if (strstr(service_status[i].lpDisplayName, "VMware Tools") != NULL || strstr(service_status[i].lpDisplayName, "VMware 物理磁盘助手服务") != NULL || strstr(service_status[i].lpDisplayName, "Virtual Machine") != NULL || strstr(service_status[i].lpDisplayName, "VirtualBox Guest") != NULL)
 		{
@@ -493,7 +487,7 @@ BOOL checkCPUID()
 }
 
 // 检测TEMP目录下的文件数量
-BOOL checkTemp(INT aNum)
+BOOL checkTempDir(INT aNum)
 {
 	int file_count = 0;
 	DWORD dwRet;
@@ -620,12 +614,12 @@ BOOL ManageWMIInfo(string &result, string table, wstring wcol)
 			result = bord;
 		}
 		VariantClear(&vtProp);
+		pclsObj->Release();
 	}
 
 	pSvc->Release();
 	pLoc->Release();
 	pEnumerator->Release();
-	pclsObj->Release();
 	CoUninitialize();
 
 	return TRUE;
@@ -678,6 +672,142 @@ detected:
 	return TRUE;
 }
 
+// 使用sgdt和sldt指令探测VMware的技术通常被称为No Pill
+// 通过禁用VMware加速可以防止No Pill技术的探测
+BOOL checkNoPill()
+{
+	ULONG xdt = 0;
+	ULONG InVM = 0;
+	__asm
+	{
+		push edx
+		sidt[esp - 2]
+		pop edx
+		nop
+		mov xdt, edx
+	}
+	if (xdt > 0xd0000000)
+	{
+		InVM = 1;
+	}
+	else
+	{
+		InVM = 0;
+	}
+	__asm
+	{
+		push edx
+		sgdt[esp - 2]
+		pop edx
+		nop
+		mov xdt, edx
+	}
+	if (xdt > 0xd0000000)
+	{
+		InVM += 1;
+	}
+	if (InVM == 0)
+	{
+		return FALSE;
+	}
+	else
+	{
+		return TRUE;
+	}
+}
+
+// 检测IO端口
+// VMware会监视in指令的执行，并捕获目的通信端口为0x5668(VX)的I/O
+// VMware会检查第二个操作数是否是VX，在这种情况发生时
+// EAX寄存器载入的值是0x564D5868(VMXh)
+// ECX寄存器为在端口上执行相应操作的值
+// 0xA：get VMware version type
+// 0x14：get the memory size
+// 则EBX为magic数VMXh，ECX为版本号
+// 在真实机器上运行会触发EXCEPTION_EXECUTE_HANDLER异常
+// https://www.aldeid.com/wiki/VMXh-Magic-Value
+BOOL checkIOPort()
+{
+	bool rc = true;
+	__try
+	{
+		__asm
+		{
+			push   edx
+			push   ecx
+			push   ebx
+			mov    eax, 'VMXh'
+			mov    ebx, 0
+			mov    ecx, 10
+			mov    edx, 'VX'
+			in     eax, dx // 从一个源操作数指定的端口dx复制数据到目的操作数指定的内存地址
+			cmp    ebx, 'VMXh'
+			setz[rc]
+			pop    ebx
+			pop    ecx
+			pop    edx
+		}
+	}
+	__except (EXCEPTION_EXECUTE_HANDLER)
+	{
+		rc = false;
+	}
+	return rc;
+}
+
+// 检查当前正在运行的任务的任务状态段(TSS)
+// 在保护模式下运行的程序在切换任务时，当前任务中指向TSS的段选择器将会被存储在任务寄存器(TR)中
+// 在虚拟机和真实主机之中，通过STR读取的地址是不同的，当地址等于0x0040xxxx时，说明处于虚拟机中
+// VMware
+BOOL checkTSS()
+{
+	unsigned char mem[4] = { 0 };
+	__asm str mem; // 将任务寄存器(TR)中的段选择器存储到目标操作数
+	if ((mem[0] == 0x00) && (mem[1] == 0x40))
+	{
+		return TRUE;
+	}
+	else
+	{
+		return FALSE;
+	}
+}
+
+// 检测无效指令
+// VirtualPC使用一堆无效指令来允许虚拟机和VirtualPC之间连接，如果VirtualPC存在则不引起异常
+DWORD IslnsideVPC_exceptionFilter(LPEXCEPTION_POINTERS ep)
+{
+	PCONTEXT ctx = ep->ContextRecord;
+	ctx->Ebx = -1; // 未运行在VPC中  
+	ctx->Eip += 4; // 跳过call VPC操作  
+	return EXCEPTION_CONTINUE_EXECUTION;
+}
+BOOL checkUnISA()
+{
+	bool rc = TRUE;
+	__try
+	{
+		__asm
+		{
+			push ebx
+			mov ebx, 0
+			mov eax, 1
+			__emit 0fh // 在当前位置直接插入数据
+			__emit 3fh
+			__emit 07h
+			__emit 0bh
+			test ebx, ebx
+			setz[rc]
+			pop ebx
+		}
+	}
+	__except (IslnsideVPC_exceptionFilter(GetExceptionInformation()))
+	{
+		rc = FALSE;
+	}
+	return rc;
+}
+
 int main()
 {
 	// 需要管理员权限
@@ -686,14 +816,26 @@ int main()
 		printf("[+] Admin\n");
 		checkCPUTemperature();
 		checkPhyDisk(250);
+		checkPath();
 	}
 	else // 不需要管理员权限
 	{
 		printf("[+] Not Admin\n");
-		checkPUCores(4);
+		checkCPUCores(4);
 		checkDomain();
+		checkMAC();
 		checkMemory(4);
+		checkProcess();
+		checkSerivce();
+		checkUptime();
 		checkCPUID();
+		checkTempDir(30);
+		checkHardwareInfo();
+		checkSpeed();
+		checkNoPill();
+		checkIOPort();
+		checkTSS();
+		checkUnISA();
 	}
 
 	return 0;
