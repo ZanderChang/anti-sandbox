@@ -311,10 +311,9 @@ BOOL checkMAC()
 BOOL checkMemory(INT memory) 
 {
 	_MEMORYSTATUSEX mst;
-	DWORDLONG d_size = memory * 1024 * 1024 * 1024;
 	mst.dwLength = sizeof(mst);
 	GlobalMemoryStatusEx(&mst);
-	if (mst.ullTotalPhys < d_size) // B
+	if (mst.ullTotalPhys / (1024.0 * 1024 * 1024) < memory) // B
 	{
 		return TRUE;
 	}
@@ -341,7 +340,7 @@ BOOL checkPhyDisk(INT disk)
 	bool result = DeviceIoControl(hDrive, IOCTL_DISK_GET_LENGTH_INFO, NULL, 0, &size, sizeof(GET_LENGTH_INFORMATION), &lpBytes, NULL);
 	CloseHandle(hDrive);
 
-	if ((size.Length.QuadPart / 1073741824) > disk)
+	if ((size.Length.QuadPart / 1073741824) < disk)
 	{
 		return TRUE;
 	}
@@ -352,20 +351,9 @@ BOOL checkPhyDisk(INT disk)
 }
 
 // 检测进程
-int check(char* name)
-{
-	const char* list[3] = { "VBoxService.exe", "VBoxTray.exe", "vmware.exe"};
-	for (int i = 0; i < 3; ++i)
-	{
-		if (strcmp(name, list[i]) == 0)
-		{
-			return -1;
-		}
-	}
-	return 0;
-}
 BOOL checkProcess() 
 {
+	const char* list[3] = { "VBoxService.exe", "VBoxTray.exe", "vmware.exe" };
 	PROCESSENTRY32 pe32;
 	pe32.dwSize = sizeof(pe32);
 	HANDLE hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
@@ -374,13 +362,16 @@ BOOL checkProcess()
 	{
 		char sz_Name[MAX_PATH] = { 0 };
 		WideCharToMultiByte(CP_ACP, 0, pe32.szExeFile, -1, sz_Name, sizeof(sz_Name), NULL, NULL);
-		if (check(sz_Name) == -1)
+		for (int i = 0; i < 3; ++i)
 		{
-			return FALSE;
+			if (strcmp(sz_Name, list[i]) == 0)
+			{
+				return TRUE;
+			}
 		}
 		bResult = Process32Next(hProcessSnap, &pe32);
 	}
-	return TRUE;
+	return FALSE;
 }
 
 // 检测注册表和文件路径（可能需要管理员权限）
@@ -411,7 +402,7 @@ BOOL checkSerivce()
 	SC_HANDLE SCMan = OpenSCManager(NULL, NULL, SC_MANAGER_ENUMERATE_SERVICE);
 	if (SCMan == NULL)
 	{
-		return FALSE;
+		return -1;
 	}
 	// 保存系统服务的结构  
 	LPENUM_SERVICE_STATUSA service_status;
@@ -431,7 +422,7 @@ BOOL checkSerivce()
 	);
 	if (ESS == NULL)
 	{
-		return FALSE;
+		return -1;
 	}
 	for (DWORD i = 0; i < ServicesReturned; i++)
 	{
@@ -446,10 +437,10 @@ BOOL checkSerivce()
 }
 
 // 检测开机时间
-BOOL checkUptime()
+BOOL checkUptime(DWORD msTime)
 {
 	DWORD UpTime = GetTickCount();
-	if (UpTime < 3600000)
+	if (UpTime < msTime)
 	{
 		return TRUE;
 	}
@@ -681,7 +672,7 @@ BOOL checkNoPill()
 	__asm
 	{
 		push edx
-		sidt[esp - 2]
+		sidt[esp - 2] // 将中断描述符表寄存器IDTR的内容存入指定地址单元
 		pop edx
 		nop
 		mov xdt, edx
@@ -690,14 +681,11 @@ BOOL checkNoPill()
 	{
 		InVM = 1;
 	}
-	else
-	{
-		InVM = 0;
-	}
+
 	__asm
 	{
 		push edx
-		sgdt[esp - 2]
+		sgdt[esp - 2] // 将全局描述符表格寄存器GDTR的内容存入指定地址单元
 		pop edx
 		nop
 		mov xdt, edx
@@ -706,6 +694,7 @@ BOOL checkNoPill()
 	{
 		InVM += 1;
 	}
+
 	if (InVM == 0)
 	{
 		return FALSE;
@@ -827,7 +816,7 @@ int main()
 		checkMemory(4);
 		checkProcess();
 		checkSerivce();
-		checkUptime();
+		checkUptime(3600000); // ms
 		checkCPUID();
 		checkTempDir(30);
 		checkHardwareInfo();
