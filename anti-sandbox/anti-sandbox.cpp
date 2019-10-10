@@ -45,7 +45,7 @@ BOOL isAdmin()
 	return bElevated;
 }
 
-// 获取CPU核心数
+// 检查CPU核心数
 // SYSTEM_INFO.dwNumberOfProcessors
 BOOL checkCPUCores(INT cores)
 {
@@ -59,7 +59,7 @@ BOOL checkCPUCores(INT cores)
 	return i < cores;
 }
 
-// 获取CPU温度（需要管理员权限）
+// 检查CPU温度（需要管理员权限）
 // Get-WMIObject MSAcpi_ThermalZoneTemperature -Namespace "root/wmi"
 // VM中无返回结果
 // https://docs.microsoft.com/en-us/windows/win32/wmisdk/example--getting-wmi-data-from-the-local-computer
@@ -655,7 +655,7 @@ BOOL checkHardwareInfo()
 	return bRet;
 }
 
-// 根据代码运行时间差来判断（需指定时间差）
+// 检测代码运行时间差（需指定时间差）
 BOOL checkSpeed()
 {
 	__asm
