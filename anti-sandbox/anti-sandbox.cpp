@@ -451,6 +451,7 @@ BOOL checkUptime(DWORD msTime)
 }
 
 // 使用CPUID指令
+// 当EAX=1时，CPUID的ECX中HYPERV_HYPERVISOR_PRESENT_BIT标识是否在虚拟环境中
 BOOL checkCPUID()
 {
 	DWORD dw_ecx;
@@ -461,7 +462,7 @@ BOOL checkCPUID()
 		mov eax, 1; // Processor Info and Feature Bits
 		cpuid; // 根据传递给EAX寄存器的值，将对应的信息返回给EAX、EBX、ECX、EDX
 		mov dw_ecx, ecx; // Feature Information
-		and ecx, 0x80000000; // Hypervisor present (always zero on physical CPUs)
+		and ecx, 0x80000000; // Hypervisor present (always zero on physical CPUs) 即 HYPERV_HYPERVISOR_PRESENT_BIT
 		test ecx, ecx; // AND为0的话ZF=1
 		setz[bFlag]; // ZF为1的话bFlag=1
 		popfd;

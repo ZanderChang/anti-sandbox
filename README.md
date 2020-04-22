@@ -33,3 +33,4 @@ Windows对抗沙箱和虚拟机的方法总结
 * https://zhuanlan.zhihu.com/p/35423785
 * https://www.anquanke.com/post/id/186218
 * https://bbs.pediy.com/thread-119969.htm
+* https://rayanfam.com/topics/defeating-malware-anti-vm-techniques-cpuid-based-instructions/
